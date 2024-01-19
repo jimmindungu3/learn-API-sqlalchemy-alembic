@@ -1,66 +1,40 @@
-from sqlalchemy import create_engine, Column, Integer, String, Sequence, Float, ForeignKey
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+# app.py
+
+
+from app import Flask, render_template
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from faker import Faker
+from models import Base, User, Blog, Payment  # Import your SQLAlchemy setup
 
-fake = Faker()
+app = Flask(__name__)
 
+# Configure Flask to connect to your database
 engine = create_engine('sqlite:///data.db', echo=True)
-Base = declarative_base()
+Base.metadata.bind = engine
 
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, Sequence('user_id_seq'), primary_key=True)
-    username = Column(String(50), unique=True)
-    full_name = Column(String(50))
-    email = Column(String(100))
-    blogs = relationship('Blog', back_populates='author')
-    payments = relationship('Payment', back_populates='user')
+# Isolate the creation of the session to avoid global variables
+def create_session():
+    DBSession = sessionmaker(bind=engine)
+    return DBSession()
 
-class Blog(Base):
-    __tablename__ = "blogs"
-    id = Column(Integer, Sequence('blog_id_seq'), primary_key=True)
-    title = Column(String(100))
-    content = Column(String(500))
-    user_id = Column(Integer, ForeignKey('users.id'))
-    author = relationship('User', back_populates='blogs')
-    payments = relationship('Payment', back_populates='blog')
+@app.route('/')
+def index():
+    session = create_session()
+    users = session.query(User).all()
+    return render_template('index.html', users=users)
 
-class Payment(Base):
-    __tablename__ = "payments"
-    id = Column(Integer, Sequence('payment_id_seq'), primary_key=True)
-    amount = Column(Float)
-    user_id = Column(Integer, ForeignKey('users.id'))
-    blog_id = Column(Integer, ForeignKey('blogs.id'))
-    user = relationship('User', back_populates='payments')
-    blog = relationship('Blog', back_populates='payments')
+@app.route('/blogs')
+def blogs():
+    session = create_session()
+    blogs = session.query(Blog).all()
+    return render_template('blogs.html', blogs=blogs)
 
-Base.metadata.create_all(engine)
+@app.route('/payments')
+def payments():
+    session = create_session()
+    payments = session.query(Payment).all()
+    return render_template('payments.html', payments=payments)
 
-Session = sessionmaker(bind=engine)
-session = Session()
+if __name__ == '__main__':
+    app.run(debug=True)
 
-for _ in range(5):
-    new_user = User(username=fake.user_name(), email=fake.email(), full_name=fake.name())
-    session.add(new_user)
-
-session.commit()
-
-for _ in range(10):
-    new_blog = Blog(title=fake.sentence(), content=fake.paragraph(), author=fake.random_element(session.query(User).all()))
-    session.add(new_blog)
-
-session.commit()
-
-for _ in range(15):
-    amount = fake.random_int(min=10, max=100)
-    user = fake.random_element(session.query(User).all())
-    blog = fake.random_element(session.query(Blog).all())
-    new_payment = Payment(amount=amount, user=user, blog=blog)
-    session.add(new_payment)
-
-session.commit()
-print("Users, Blogs, and Payments added successfully")
-
-session.close()
