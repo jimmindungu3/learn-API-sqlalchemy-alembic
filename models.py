@@ -1,4 +1,4 @@
-# app.py
+# models.py
 
 from sqlalchemy import create_engine, Column, Integer, String, Sequence, Float, ForeignKey
 from sqlalchemy.orm import relationship
